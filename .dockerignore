@@ -1,0 +1,13 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+.env
+.git
+.gitignore
+.github
+.idea
+docs
+tests
+CLAUDE.md
+progress.md
