@@ -36,3 +36,19 @@ portfolio site (server-side)  <--(ClusterIP)--  GET /results, GET /health
 
 The pipeline is reached through its REST API, never its database — same loose
 coupling as the backtester itself.
+
+## Decision — consuming `vectorized-backtester`
+
+**Chosen:** a pip dependency on the engine's GitHub archive, pinned to a commit
+sha in `requirements.txt` (the engine ships a `pyproject.toml`).
+
+| | Pinned dependency (chosen) | Vendoring |
+|---|---|---|
+| Source of truth | one — the engine repo | two copies drifting apart |
+| Reproducibility | sha-pinned, same bytes every build | same, but by copy |
+| Upgrade | bump the sha, deliberate | re-copy, easy to forget a file |
+
+The archive URL (`.../archive/<sha>.tar.gz`) is used rather than `git+https`
+so the `python:3.11-slim` image builds without installing `git`. Plotting is an
+optional extra (`[plot]`) of the engine, not installed here: the service never
+draws, so the image carries no matplotlib.
