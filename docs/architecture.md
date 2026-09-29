@@ -52,3 +52,32 @@ The archive URL (`.../archive/<sha>.tar.gz`) is used rather than `git+https`
 so the `python:3.11-slim` image builds without installing `git`. Plotting is an
 optional extra (`[plot]`) of the engine, not installed here: the service never
 draws, so the image carries no matplotlib.
+
+## Refresh and failure behavior
+
+- **Schedule**: one refresh at startup, then every `REFRESH_INTERVAL_SECONDS`
+  (default 3600). A plain `asyncio` task: no scheduler dependency for one job.
+- **Window**: the last `LOOKBACK_DAYS` (default 30) of `SYMBOL`/`TIMEFRAME`
+  (default `BTCUSDT`/`1h`), SMA `10/30`. The engine's `DataLoader` is
+  synchronous, so it runs in a worker thread (`asyncio.to_thread`) instead of
+  being rewritten on top of an async client.
+- **Failure**: a refresh that raises (pipeline down, hole in the series, too
+  few candles) is logged and recorded; the previous result stays served. The
+  `DataLoader` refuses a series with a gap rather than patching it, so a hole
+  in the pipeline's data inside the window shows up here as failed refreshes.
+- **Staleness**: `stale: true` once the last good result is older than two
+  refresh periods, on both `/results` and `/health`.
+- **Atomic swaps**: the store holds one immutable snapshot (result + timestamps)
+  replaced under a lock, so a reader never pairs a result with another run's
+  timestamp.
+
+## API surface
+
+| Route | Behavior |
+|---|---|
+| `GET /results` | `503` until the first successful refresh; then the latest result, a `disclaimer` field and `stale` |
+| `GET /health` | always `200` (liveness): a pipeline outage must not get the pod restarted in a loop; freshness is reported in the body |
+
+FastAPI's `/docs`, `/redoc` and `/openapi.json` are disabled. The result
+exposes metrics and the equity curve, never the current position: that is the
+one field a reader could take for a live signal.
